@@ -468,7 +468,7 @@ select.flt{background:var(--bg2);border:1px solid var(--brd);color:var(--t1);bor
     Cloud
   </span>
   <span id="drive-lbl">Not connected — data saved locally only</span>
-  <button class="dbtn go" id="dbtn-connect" onclick="DriveSync.openSetup()">🔗 Connect Google Drive</button>
+  <button class="dbtn go" id="dbtn-connect" onclick="DriveSync.openSetup()">🔗 Sign in with Google</button>
   <button class="dbtn up"  id="dbtn-sync"  style="display:none" onclick="DriveSync.manualSync()">↑ Sync Now</button>
   <button class="dbtn out" id="dbtn-out"   style="display:none" onclick="DriveSync.signOut()">✕ Sign Out</button>
   <span id="drive-ts"></span>
@@ -1537,14 +1537,17 @@ const DriveSync = (() => {
   const API_UPLOAD= 'https://www.googleapis.com/upload/drive/v3/files';
 
   // localStorage keys (non-sensitive identifiers only)
-  const K_CID = 'htj-gcid';   // OAuth Client ID (public, non-secret)
-  const K_FID = 'htj-gfid';   // Drive file ID (non-sensitive)
+  const K_CID = 'htj-gcid';
+  const K_FID = 'htj-gfid';
 
-  // ── Private state (memory-only, never persisted) ─────────────
-  let _token       = null;   // ⚠ ACCESS TOKEN — memory only, never localStorage
-  let _tokenExpiry = 0;      // timestamp when token expires
-  let _tokenClient = null;   // GIS token client instance
-  let _clientId    = null;   // loaded from localStorage on init
+  // ── Client ID ثابت — المستخدم لا يحتاج أي إعداد ─────────────
+  const HARDCODED_CID = '328621074655-0lumkk6jpm0q5huund4nifvr4g2e7p4n.apps.googleusercontent.com';
+
+  // ── Private state ─────────────────────────────────────────────
+  let _token       = null;
+  let _tokenExpiry = 0;
+  let _tokenClient = null;
+  let _clientId    = HARDCODED_CID;
   let _fileId      = null;   // Drive file ID, cached after first lookup
   let _gisReady    = false;  // GIS library loaded flag
   let _autoTimer   = null;   // interval handle for auto-sync
@@ -1584,22 +1587,15 @@ const DriveSync = (() => {
     if (badge) badge.title = yes ? 'Cloud sync active — click to manage' : 'Connect Google Drive for cloud backup';
   }
 
-  // ── Setup Modal ──────────────────────────────────────────────
+  // ── Setup — Client ID ثابت، يسجل دخول مباشرة ───────────────
   function openSetup() {
-    const saved = localStorage.getItem(K_CID) || '';
-    $('cid-inp').value = saved;
-    onCIDInput(saved);
-    // Populate origin preview in Step 4
-    const originEl = $('dsm-origin-preview');
-    if (originEl) {
-      const o = (location.origin && location.origin !== 'null')
-        ? location.origin
-        : location.href.replace(/\/[^/]*$/, '') || location.href;
-      originEl.textContent = o.length > 42 ? o.slice(0, 42) + '…' : o;
+    if (_isConnected) {
+      $('dsm-ov').classList.add('open');
+      switchTab('signin');
+      return;
     }
-    $('dsm-ov').classList.add('open');
-    // Default to signin tab if CID already set, guide if not
-    switchTab(saved ? 'signin' : 'guide');
+    // سجل دخول مباشرة بدون أي إعداد من المستخدم
+    signIn();
   }
 
   // ── Clipboard helper (used by guide copy-buttons) ────────────
@@ -1698,8 +1694,8 @@ const DriveSync = (() => {
 
   // ── Sign In ──────────────────────────────────────────────────
   async function signIn() {
-    _clientId = ($('cid-inp')?.value || '').trim();
-    if (!_clientId) return;
+    // استخدم الـ Client ID الثابت دائماً
+    _clientId = HARDCODED_CID;
 
     closeSetup();
     setBarState('syncing', 'Connecting to Google…');
